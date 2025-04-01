@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
+import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
@@ -18,6 +19,9 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
+
+import java.awt.datatransfer.DataFlavor;
+import java.awt.event.ActionEvent;
 import java.awt.event.KeyListener;
 import javax.swing.*;
 import javax.swing.border.Border;
@@ -25,6 +29,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.DefaultEditorKit;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -38,12 +43,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
  * Main chat panel UI component that implements the file searching and copying functionality
  */
 public class ChatPanel extends JPanel {
+    private static final Logger LOGGER = Logger.getLogger(ChatPanel.class.getName());
     private GitIgnoreParser gitIgnoreParser;
     private final Project project;
     private final JBTextArea inputField;
@@ -56,28 +63,24 @@ public class ChatPanel extends JPanel {
     private boolean navigatingSuggestions = false;
 
     public ChatPanel(Project project) {
+        LOGGER.warning("🚀 Logging works!");
         this.project = project;
         setLayout(new BorderLayout());
 
-        // Create the chat messages container
         chatMessageContainer = new JPanel();
         chatMessageContainer.setLayout(new BoxLayout(chatMessageContainer, BoxLayout.Y_AXIS));
         chatMessageContainer.setBorder(JBUI.Borders.empty(10));
 
-        // Create a welcome message
         addSystemMessage("Welcome to File Copier! Type # followed by a file or folder name to search. " +
                 "Use Ctrl+Enter to copy selected files to clipboard.");
 
-        // Add scroll pane for chat messages
         scrollPane = new JBScrollPane(chatMessageContainer);
         scrollPane.setBorder(JBUI.Borders.empty());
         add(scrollPane, BorderLayout.CENTER);
 
-        // Create the input panel at the bottom
         JPanel inputPanel = new JPanel(new BorderLayout());
         inputPanel.setBorder(JBUI.Borders.empty(10, 10, 10, 10));
 
-        // Create the input field
         inputField = new JBTextArea(3, 50);
         inputField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(JBColor.border(), 1),
@@ -86,29 +89,18 @@ public class ChatPanel extends JPanel {
         inputField.setLineWrap(true);
         inputField.setWrapStyleWord(true);
 
-        // Add document listener to detect # characters
         inputField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                handleInputChange();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                handleInputChange();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                handleInputChange();
-            }
+            public void insertUpdate(DocumentEvent e) { handleInputChange(); }
+            public void removeUpdate(DocumentEvent e) { handleInputChange(); }
+            public void changedUpdate(DocumentEvent e) { handleInputChange(); }
         });
 
+new PastePathAppender(inputField, project);
 
 
-        // Add key listener for special key combinations
+// Replace the default Ctrl+V (paste) action
+        inputField.getInputMap().put(KeyStroke.getKeyStroke("control V"), "custom-paste");
         inputField.addKeyListener(new KeyAdapter() {
-            @Override
             public void keyPressed(KeyEvent e) {
                 if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_ENTER) {
                     e.consume();
@@ -123,44 +115,62 @@ public class ChatPanel extends JPanel {
                         suggestionList.setSelectedIndex(newIndex);
                         suggestionList.ensureIndexIsVisible(newIndex);
                     }
-                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE && suggestionPanel.isVisible()) {
-                    e.consume();
-                    hideSuggestions();
-                } else if (e.getKeyCode() == KeyEvent.VK_ENTER && suggestionPanel.isVisible() &&
-                        suggestionList.getSelectedValue() != null) {
-                    e.consume();
-                    selectSuggestion(suggestionList.getSelectedValue());
+                } else if (e.getKeyCode() == KeyEvent.VK_V && e.isControlDown()) {
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            String pastedText = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+                            String filePath = getCurrentEditorRelativePath();
+                            if (filePath != null && !pastedText.isEmpty()) {
+                                String fullText = "#" + filePath + "\n" + pastedText;
+                                inputField.insert(fullText + "\n", inputField.getCaretPosition());
+
+                                // ✅ Also add it visibly to chat
+                                addUserMessage("📋 Pasted from `" + filePath + "`:\n\n" + pastedText);
+                            }
+                        } catch (Exception ignored) {}
+                    });
                 }
             }
         });
+        inputField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_V && e.isControlDown()) {
+                    SwingUtilities.invokeLater(() -> {
+                        LOGGER.warning("inside ctrl V");
+                        try {
+                            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                            String pastedText = (String) clipboard.getData(DataFlavor.stringFlavor);
 
+                            String editorPath = getCurrentEditorRelativePath();
+                            if (editorPath != null && !pastedText.isEmpty()) {
+                                String tagged = "#" + editorPath + "\n" + pastedText + "\n";
+                                inputField.insert(tagged, inputField.getCaretPosition());
+
+                                // ✅ Add visible message to chat
+                                addUserMessage("📋 Pasted from `" + editorPath + "`:\n\n" + pastedText);
+                            }
+                        } catch (Exception ignored) {}
+                    });
+                }
+            }
+        });
         JScrollPane inputScrollPane = new JBScrollPane(inputField);
         inputScrollPane.setBorder(JBUI.Borders.empty());
         inputPanel.add(inputScrollPane, BorderLayout.CENTER);
 
-        // Create toolbar with actions
         DefaultActionGroup actionGroup = new DefaultActionGroup();
-
-        // Add send button (currently used to copy to clipboard)
-        actionGroup.add(new AnAction("Copy to Clipboard", "Copy selected files to clipboard",
-                AllIcons.Actions.Copy) {
-            @Override
+        actionGroup.add(new AnAction("Copy to Clipboard", "Copy selected files and input", AllIcons.Actions.Copy) {
             public void actionPerformed(@NotNull AnActionEvent e) {
                 copySelectedFilesToClipboard();
             }
         });
-
-        // Add clear button
-        actionGroup.add(new AnAction("Clear Selection", "Clear selected files",
-                AllIcons.Actions.GC) {
-            @Override
+        actionGroup.add(new AnAction("Clear Selection", "Clear selected files", AllIcons.Actions.GC) {
             public void actionPerformed(@NotNull AnActionEvent e) {
                 clearSelection();
             }
         });
-
-        ActionToolbar actionToolbar = ActionManager.getInstance()
-                .createActionToolbar("FileCopier", actionGroup, true);
+        ActionToolbar actionToolbar = ActionManager.getInstance().createActionToolbar("FileCopier", actionGroup, true);
         actionToolbar.setTargetComponent(inputPanel);
         inputPanel.add(actionToolbar.getComponent(), BorderLayout.EAST);
 
@@ -273,6 +283,24 @@ public class ChatPanel extends JPanel {
             }
         }
     }
+
+    private String getCurrentEditorRelativePath() {
+        FileEditorManager manager = FileEditorManager.getInstance(project);
+        VirtualFile[] files = manager.getSelectedFiles();
+        if (files.length > 0) {
+            VirtualFile file = files[0];
+            LOGGER.warning("Editor file path: " + file.getPath());
+            VirtualFile base = project.getBaseDir();
+            if (file.getPath().startsWith(base.getPath())) {
+                String relative = file.getPath().substring(base.getPath().length() + 1);
+                LOGGER.warning("Resolved relative path: " + relative);
+                return relative;
+            }
+        }
+        LOGGER.warning("No file found or unable to resolve relative path.");
+        return null;
+    }
+
 
     /**
      * Handles input changes to detect # for file search
@@ -472,7 +500,9 @@ public class ChatPanel extends JPanel {
                         processFile(item.getPath(), contentBuilder, indicator);
                     }
                 }
-
+                if (!inputField.getText().trim().isEmpty()) {
+                    contentBuilder.append("\n\n### Other Copied Input ###\n").append(inputField.getText().trim());
+                }
                 clipboardContent = contentBuilder.toString();
             }
 
@@ -533,9 +563,7 @@ public class ChatPanel extends JPanel {
                 // Copy to clipboard
                 StringSelection selection = new StringSelection(clipboardContent);
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                clipboard.setContents(selection, null);
 
-                // Add confirmation message
                 addSystemMessage("✅ Copied " + fileCount + " files to clipboard!");
             }
 
