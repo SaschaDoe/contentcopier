@@ -18,7 +18,7 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.NotNull;
-
+import java.awt.event.KeyListener;
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
@@ -53,6 +53,7 @@ public class ChatPanel extends JPanel {
     private final DefaultListModel<FileSuggestion> suggestionModel;
     private final JBScrollPane scrollPane;
     private final List<FileItem> selectedItems = new ArrayList<>();
+    private boolean navigatingSuggestions = false;
 
     public ChatPanel(Project project) {
         this.project = project;
@@ -103,6 +104,8 @@ public class ChatPanel extends JPanel {
             }
         });
 
+
+
         // Add key listener for special key combinations
         inputField.addKeyListener(new KeyAdapter() {
             @Override
@@ -110,11 +113,15 @@ public class ChatPanel extends JPanel {
                 if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_ENTER) {
                     e.consume();
                     copySelectedFilesToClipboard();
-                } else if (e.getKeyCode() == KeyEvent.VK_DOWN && suggestionPanel.isVisible()) {
+                } else if ((e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_UP) && suggestionPanel.isVisible()) {
                     e.consume();
+                    navigatingSuggestions = true;
                     suggestionList.requestFocusInWindow();
-                    if (suggestionList.getModel().getSize() > 0) {
-                        suggestionList.setSelectedIndex(0);
+                    int size = suggestionList.getModel().getSize();
+                    if (size > 0) {
+                        int newIndex = e.getKeyCode() == KeyEvent.VK_DOWN ? 0 : size - 1;
+                        suggestionList.setSelectedIndex(newIndex);
+                        suggestionList.ensureIndexIsVisible(newIndex);
                     }
                 } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE && suggestionPanel.isVisible()) {
                     e.consume();
@@ -181,9 +188,11 @@ public class ChatPanel extends JPanel {
 
         suggestionList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && suggestionList.getSelectedValue() != null) {
-                // Simply check if a selection is made without mouse button check
-                selectSuggestion(suggestionList.getSelectedValue());
+                if (!navigatingSuggestions) {
+                    selectSuggestion(suggestionList.getSelectedValue());
+                }
             }
+
         });
 
         suggestionList.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -191,6 +200,56 @@ public class ChatPanel extends JPanel {
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 if (SwingUtilities.isLeftMouseButton(e) &&
                         suggestionList.getSelectedValue() != null) {
+                    selectSuggestion(suggestionList.getSelectedValue());
+                }
+            }
+        });
+
+        //New for selection of up and down
+        // Add enhanced key navigation behavior to suggestion list
+        suggestionList.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    e.consume();
+                    navigatingSuggestions = false; // Manual selection now
+                    if (suggestionList.getSelectedValue() != null) {
+                        selectSuggestion(suggestionList.getSelectedValue());
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    e.consume();
+                    navigatingSuggestions = false;
+                    hideSuggestions();
+                    inputField.requestFocusInWindow();
+                } else if (e.getKeyCode() != KeyEvent.VK_UP && e.getKeyCode() != KeyEvent.VK_DOWN) {
+                    navigatingSuggestions = false; // Other key pressed
+                    inputField.requestFocusInWindow();
+                }
+            }
+        });
+
+        // Add key listener to inputField for up/down arrows to focus suggestion list
+        inputField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    e.consume();
+                    copySelectedFilesToClipboard();
+                } else if ((e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_UP) && suggestionPanel.isVisible()) {
+                    e.consume();
+                    suggestionList.requestFocusInWindow();
+                    int size = suggestionList.getModel().getSize();
+                    if (size > 0) {
+                        int newIndex = e.getKeyCode() == KeyEvent.VK_DOWN ? 0 : size - 1;
+                        suggestionList.setSelectedIndex(newIndex);
+                        suggestionList.ensureIndexIsVisible(newIndex);
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE && suggestionPanel.isVisible()) {
+                    e.consume();
+                    hideSuggestions();
+                } else if (e.getKeyCode() == KeyEvent.VK_ENTER && suggestionPanel.isVisible() &&
+                        suggestionList.getSelectedValue() != null) {
+                    e.consume();
                     selectSuggestion(suggestionList.getSelectedValue());
                 }
             }
