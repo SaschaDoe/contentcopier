@@ -11,6 +11,17 @@ repositories {
     maven { url 'https://jitpack.io' }
 }
 
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+}
+
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
@@ -22,9 +33,10 @@ dependencies {
 // Configure Gradle IntelliJ Plugin
 intellij {
     version = '2023.1'
-    type = 'PC' // PyCharm
-    plugins = ['PythonCore']
+    type = 'IC' // IntelliJ Community Edition (base platform for all IDEs)
+    plugins = [] // Empty or add platform-neutral ones
 }
+
 
 patchPluginXml {
     changeNotes = """
@@ -35,8 +47,8 @@ patchPluginXml {
         <li>Copy selected files to clipboard for use with LLMs</li>
       </ul>
     """
-    sinceBuild = '231' // Compatible with PyCharm 2023.1+
-    untilBuild = '241.*' // Compatible up to 2024.1
+    sinceBuild = '231'
+    untilBuild = '999.*'
 }
 
 runIde {

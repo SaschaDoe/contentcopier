@@ -1,0 +1,2 @@
+- focus first on chat input
+- also exception should be copied

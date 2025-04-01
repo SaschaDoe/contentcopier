@@ -1,8 +1,9 @@
 <idea-plugin>
     <id>com.filecopier.plugin</id>
+    <version>1.0.0</version>
     <name>File Content Copier</name>
-    <vendor email="your.email@example.com" url="https://yourwebsite.com">Your Name</vendor>
-
+    <vendor email="sascha_doerflein@web.de" url="https://github.com/SaschaDoe">Sascha Doerflein</vendor>
+    <idea-version since-build="231" until-build="999.*" />
     <description><![CDATA[
         A chat-style interface for quickly finding and copying file contents to your clipboard.
 
