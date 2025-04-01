@@ -1,0 +1,53 @@
+<idea-plugin>
+    <id>com.filecopier.plugin</id>
+    <name>File Content Copier</name>
+    <vendor email="your.email@example.com" url="https://yourwebsite.com">Your Name</vendor>
+
+    <description><![CDATA[
+        A chat-style interface for quickly finding and copying file contents to your clipboard.
+
+        <h2>Features</h2>
+        <ul>
+            <li>Type <b>#</b> followed by a file or folder name to search</li>
+            <li>Select files and folders directly in the chat</li>
+            <li>Copy all selected files to clipboard with a single click</li>
+            <li>Chat-like interface similar to GitHub Copilot or JetBrains AI Assistant</li>
+            <li>Preserves file paths for better context when pasting into LLMs</li>
+        </ul>
+
+        <h2>Usage</h2>
+        <ol>
+            <li>Open the File Copier tool window</li>
+            <li>Type <b>#</b> followed by part of a file or folder name</li>
+            <li>Select files from the dropdown</li>
+            <li>Press <b>Ctrl+Enter</b> or click the copy button to copy all files to clipboard</li>
+            <li>Paste the clipboard into Claude, ChatGPT, or your favorite LLM</li>
+        </ol>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="FileCopier"
+                    secondary="true"
+                    icon="AllIcons.General.Filter"
+                    anchor="right"
+                    factoryClass="com.filecopier.plugin.FileCopierToolWindowFactory"/>
+    </extensions>
+
+    <actions>
+        <action id="FileCopier.CopyToClipboard"
+                class="com.filecopier.plugin.actions.CopyToClipboardAction"
+                text="Copy Selected Files to Clipboard"
+                description="Copy the content of all selected files to clipboard">
+            <keyboard-shortcut keymap="$default" first-keystroke="control ENTER"/>
+        </action>
+
+        <action id="FileCopier.ClearSelection"
+                class="com.filecopier.plugin.actions.ClearSelectionAction"
+                text="Clear Selected Files"
+                description="Clear the list of selected files">
+            <keyboard-shortcut keymap="$default" first-keystroke="control alt X"/>
+        </action>
+    </actions>
+</idea-plugin>

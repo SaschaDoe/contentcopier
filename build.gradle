@@ -1,0 +1,59 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij' version '1.17.2'
+}
+
+group 'com.filecopier'
+version '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+    implementation('org.eclipse.jgit:org.eclipse.jgit:5.13.0.202109080827-r') {
+        exclude group: 'org.slf4j'
+    }
+}
+
+// Configure Gradle IntelliJ Plugin
+intellij {
+    version = '2023.1'
+    type = 'PC' // PyCharm
+    plugins = ['PythonCore']
+}
+
+patchPluginXml {
+    changeNotes = """
+      Initial release of File Content Copier plugin.
+      <ul>
+        <li>Type # to search for files and folders</li>
+        <li>Chat-like interface for selecting files</li>
+        <li>Copy selected files to clipboard for use with LLMs</li>
+      </ul>
+    """
+    sinceBuild = '231' // Compatible with PyCharm 2023.1+
+    untilBuild = '241.*' // Compatible up to 2024.1
+}
+
+runIde {
+    // Optional: configure JVM arguments for the IDE instance
+    jvmArgs = ['-Xmx2g']
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// This task packages the plugin into a ZIP file
+buildPlugin {
+    // The zip file will be located in build/distributions
+}
