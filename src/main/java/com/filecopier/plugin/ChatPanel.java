@@ -477,12 +477,6 @@ new PastePathAppender(inputField, project);
      * Copies all selected files to clipboard
      */
     public void copySelectedFilesToClipboard() {
-        if (selectedItems.isEmpty()) {
-            addSystemMessage("No files selected. Type # followed by a filename to search and select files.");
-            return;
-        }
-
-        // Start a background task
         ProgressManager.getInstance().run(new Task.Backgroundable(project, "Copying Files to Clipboard") {
             private String clipboardContent = "";
             private int fileCount = 0;
@@ -490,6 +484,12 @@ new PastePathAppender(inputField, project);
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
                 StringBuilder contentBuilder = new StringBuilder();
+
+                // ✅ Always include input text, even if no files selected
+                String inputText = inputField.getText().trim();
+                if (!inputText.isEmpty()) {
+                    contentBuilder.append("### Chat Input ###\n").append(inputText).append("\n\n");
+                }
 
                 for (FileItem item : selectedItems) {
                     if (indicator.isCanceled()) return;
@@ -500,9 +500,7 @@ new PastePathAppender(inputField, project);
                         processFile(item.getPath(), contentBuilder, indicator);
                     }
                 }
-                if (!inputField.getText().trim().isEmpty()) {
-                    contentBuilder.append("\n\n### Other Copied Input ###\n").append(inputField.getText().trim());
-                }
+
                 clipboardContent = contentBuilder.toString();
             }
 
@@ -510,15 +508,17 @@ new PastePathAppender(inputField, project);
                 VirtualFile dir = project.getBaseDir().findFileByRelativePath(dirPath);
                 if (dir == null || !dir.isValid() || !dir.isDirectory()) return;
 
+                // 💡 Add this to include folder heading
                 contentBuilder.append("### Folder: ").append(dirPath).append(" ###\n\n");
 
                 for (VirtualFile child : dir.getChildren()) {
                     if (indicator.isCanceled()) return;
 
+                    String relative = getRelativePath(project.getBaseDir(), child);
                     if (child.isDirectory()) {
-                        processDirectory(getRelativePath(project.getBaseDir(), child), contentBuilder, indicator);
+                        processDirectory(relative, contentBuilder, indicator);
                     } else {
-                        processFile(getRelativePath(project.getBaseDir(), child), contentBuilder, indicator);
+                        processFile(relative, contentBuilder, indicator);
                     }
                 }
             }
@@ -530,16 +530,13 @@ new PastePathAppender(inputField, project);
                 if (file == null || !file.isValid() || file.isDirectory()) return;
 
                 try {
-                    // Skip binary files
+                    contentBuilder.append("### File: ").append(filePath).append(" ###\n");
+
                     if (file.getFileType().isBinary()) {
-                        contentBuilder.append("### File: ").append(filePath)
-                                .append(" (binary file, content not copied) ###\n\n");
+                        contentBuilder.append("(binary file, content not copied)\n\n");
                         return;
                     }
 
-                    contentBuilder.append("### File: ").append(filePath).append(" ###\n");
-
-                    // Read the file content
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
                         String line;
@@ -558,12 +555,13 @@ new PastePathAppender(inputField, project);
                 }
             }
 
+
             @Override
             public void onSuccess() {
                 // Copy to clipboard
                 StringSelection selection = new StringSelection(clipboardContent);
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-
+                clipboard.setContents(selection, null);
                 addSystemMessage("✅ Copied " + fileCount + " files to clipboard!");
             }
 
